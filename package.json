@@ -1,0 +1,35 @@
+{
+  "name": "cesium-dem-viewer",
+  "version": "1.0.0",
+  "description": "DEM/TIFFファイルをCesiumで表示するWebアプリケーション",
+  "main": "index.js",
+  "scripts": {
+    "start": "cross-env GENERATE_SOURCEMAP=false react-scripts start",
+    "dev": "cross-env GENERATE_SOURCEMAP=false react-scripts start",
+    "build": "cross-env GENERATE_SOURCEMAP=false react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-scripts": "5.0.1",
+    "cesium": "^1.111.0",
+    "geotiff": "^2.0.7",
+    "web-vitals": "^3.5.0",
+    "cross-env": "^7.0.3"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "homepage": "."
+}

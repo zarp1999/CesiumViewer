@@ -1,0 +1,105 @@
+.file-upload {
+  background-color: #3d3d3d;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.file-upload h3 {
+  margin: 0 0 1rem 0;
+  color: #00d4ff;
+  font-size: 1.2rem;
+}
+
+.upload-area {
+  border: 2px dashed #666;
+  border-radius: 8px;
+  padding: 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background-color: #2d2d2d;
+  margin-bottom: 1rem;
+}
+
+.upload-area:hover {
+  border-color: #00d4ff;
+  background-color: #3a3a3a;
+}
+
+.upload-area.dragover {
+  border-color: #00d4ff;
+  background-color: #1a3a3a;
+}
+
+.upload-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.upload-icon {
+  font-size: 3rem;
+  margin-bottom: 0.5rem;
+}
+
+.upload-area p {
+  margin: 0.25rem 0;
+  color: #cccccc;
+}
+
+.upload-button {
+  background-color: #00d4ff;
+  color: #000;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background-color 0.3s ease;
+  margin-top: 0.5rem;
+}
+
+.upload-button:hover:not(:disabled) {
+  background-color: #00b8e6;
+}
+
+.upload-button:disabled {
+  background-color: #666;
+  cursor: not-allowed;
+}
+
+.file-info {
+  background-color: #2d2d2d;
+  border-radius: 6px;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+.file-info h4 {
+  margin: 0 0 0.5rem 0;
+  color: #ffffff;
+  font-size: 0.9rem;
+}
+
+.file-info ul {
+  margin: 0 0 1rem 0;
+  padding-left: 1.2rem;
+  color: #cccccc;
+  font-size: 0.85rem;
+}
+
+.file-info li {
+  margin-bottom: 0.25rem;
+}
+
+.error-message {
+  background-color: #2d1b1b;
+  border: 1px solid #ff6b6b;
+  color: #ff6b6b;
+  padding: 0.75rem;
+  border-radius: 4px;
+  margin-top: 1rem;
+  font-size: 0.9rem;
+}
