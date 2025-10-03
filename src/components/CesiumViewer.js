@@ -269,13 +269,20 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
       console.log(`生成された頂点数: ${positions.length}`);
       console.log(`生成されたインデックス数: ${indices.length}`);
 
+      // 位置データを平坦化
+      const flattenedPositions = [];
+      for (let i = 0; i < positions.length; i++) {
+        const pos = positions[i];
+        flattenedPositions.push(pos.x, pos.y, pos.z);
+      }
+
       // ジオメトリの作成
       const geometry = new Cesium.Geometry({
         attributes: {
           position: new Cesium.GeometryAttribute({
             componentDatatype: Cesium.ComponentDatatype.DOUBLE,
             componentsPerAttribute: 3,
-            values: Cesium.PrimitivePipeline.computeNormal(positions, indices).positions
+            values: flattenedPositions
           }),
           st: new Cesium.GeometryAttribute({
             componentDatatype: Cesium.ComponentDatatype.FLOAT,
@@ -308,8 +315,7 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
             )
           }
         }),
-        appearance: new Cesium.EllipsoidSurfaceAppearance({
-          material: material,
+        appearance: new Cesium.PerInstanceColorAppearance({
           faceForward: false,
           flat: true
         }),
@@ -348,6 +354,8 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
     } catch (error) {
       console.error('DEMデータの読み込みに失敗しました:', error);
       console.error('エラーの詳細:', error.stack);
+      console.error('エラータイプ:', error.name);
+      console.error('エラーメッセージ:', error.message);
       
       let errorMessage = 'DEMデータの読み込みに失敗しました: ' + error.message;
       
@@ -355,6 +363,12 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
         errorMessage = 'ファイルが大きすぎます。より小さなファイルまたは低解像度のファイルを試してください。';
       } else if (error.message.includes('out of memory')) {
         errorMessage = 'メモリ不足です。ファイルサイズを小さくしてください。';
+      } else if (error.message.includes('Invalid image')) {
+        errorMessage = '無効な画像ファイルです。GeoTIFF形式のファイルを確認してください。';
+      } else if (error.message.includes('Cannot read properties')) {
+        errorMessage = 'ファイルの読み込みに失敗しました。ファイルが破損している可能性があります。';
+      } else if (error.name === 'TypeError') {
+        errorMessage = 'ファイル形式が正しくありません。GeoTIFF (.tiff, .tif) ファイルをアップロードしてください。';
       }
       
       setError(errorMessage);
