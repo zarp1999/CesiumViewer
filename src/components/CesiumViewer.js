@@ -178,6 +178,13 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
       console.log('バウンディングボックス:', bbox);
       console.log('座標範囲 - 経度:', minX, 'to', maxX, '緯度:', minY, 'to', maxY);
 
+      // 座標値の検証
+      if (Math.abs(minX) > 180 || Math.abs(maxX) > 180 || Math.abs(minY) > 90 || Math.abs(maxY) > 90) {
+        console.warn('座標値が異常です。WGS84座標系を確認してください。');
+        console.warn('経度範囲:', minX, 'to', maxX, '(正常範囲: -180 to 180)');
+        console.warn('緯度範囲:', minY, 'to', maxY, '(正常範囲: -90 to 90)');
+      }
+
       // 高度データの取得
       const heightData = rasters[0];
       const width = image.getWidth();
@@ -237,8 +244,24 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
           const lon = minX + (x / (width - 1)) * (maxX - minX);
           const lat = minY + (y / (height - 1)) * (maxY - minY);
 
+          // 座標値の検証と修正
+          let validLon = lon;
+          let validLat = lat;
+          
+          // 経度の正規化（-180 to 180）
+          if (Math.abs(lon) > 180) {
+            validLon = lon % 360;
+            if (validLon > 180) validLon -= 360;
+            if (validLon < -180) validLon += 360;
+          }
+          
+          // 緯度の制限（-90 to 90）
+          if (Math.abs(lat) > 90) {
+            validLat = Math.max(-90, Math.min(90, lat));
+          }
+
           // 3D位置を計算
-          const position = Cesium.Cartesian3.fromDegrees(lon, lat, heightValue);
+          const position = Cesium.Cartesian3.fromDegrees(validLon, validLat, heightValue);
           positions.push(position);
 
           // UV座標
@@ -305,7 +328,7 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
         }
       });
 
-      // プリミティブの作成
+      // プリミティブの作成（非同期処理を無効化）
       const primitive = new Cesium.Primitive({
         geometryInstances: new Cesium.GeometryInstance({
           geometry: geometry,
@@ -319,7 +342,9 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
           faceForward: false,
           flat: true
         }),
-        show: true
+        show: true,
+        allowPicking: false,
+        asynchronous: false
       });
 
       primitive._name = 'DEM_LAYER';
@@ -329,21 +354,46 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
       console.log('プリミティブが追加されました。シーン内のプリミティブ数:', viewer.scene.primitives.length);
 
       // カメラをDEMエリアにフォーカス
-      const centerLon = (minX + maxX) / 2;
-      const centerLat = (minY + maxY) / 2;
+      let centerLon = (minX + maxX) / 2;
+      let centerLat = (minY + maxY) / 2;
+      
+      // 座標値の正規化
+      if (Math.abs(centerLon) > 180) {
+        centerLon = centerLon % 360;
+        if (centerLon > 180) centerLon -= 360;
+        if (centerLon < -180) centerLon += 360;
+      }
+      
+      if (Math.abs(centerLat) > 90) {
+        centerLat = Math.max(-90, Math.min(90, centerLat));
+      }
+      
       const centerHeight = (minHeight + maxHeight) / 2 * settings.heightScale;
       const distance = Math.max(1000, centerHeight * 3); // 適切な距離を計算
 
       console.log(`カメラ位置 - 経度: ${centerLon}, 緯度: ${centerLat}, 高度: ${distance}`);
 
-      viewer.camera.setView({
-        destination: Cesium.Cartesian3.fromDegrees(centerLon, centerLat, distance),
-        orientation: {
-          heading: 0.0,
-          pitch: Cesium.Math.toRadians(-45),
-          roll: 0.0
-        }
-      });
+      // 座標が有効な場合のみカメラを設定
+      if (Math.abs(centerLon) <= 180 && Math.abs(centerLat) <= 90) {
+        viewer.camera.setView({
+          destination: Cesium.Cartesian3.fromDegrees(centerLon, centerLat, distance),
+          orientation: {
+            heading: 0.0,
+            pitch: Cesium.Math.toRadians(-45),
+            roll: 0.0
+          }
+        });
+      } else {
+        console.warn('座標が無効なため、デフォルトのカメラ位置を使用します');
+        viewer.camera.setView({
+          destination: Cesium.Cartesian3.fromDegrees(139.6917, 35.6895, 10000),
+          orientation: {
+            heading: 0.0,
+            pitch: Cesium.Math.toRadians(-30),
+            roll: 0.0
+          }
+        });
+      }
 
       // シーンの更新を強制
       viewer.scene.requestRender();
