@@ -423,8 +423,14 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
             Cesium.Cartesian3.fromDegrees(maxX, minY, minHeight * settings.heightScale)
           ];
           
-          // 各ポイントが有効かチェック
-          const validPoints = cornerPoints.filter(point => Cesium.Cartesian3.isValid(point));
+          // 各ポイントが有効かチェック（手動検証）
+          const isValidPoint = (point) => {
+            return point && 
+                   isFinite(point.x) && isFinite(point.y) && isFinite(point.z) &&
+                   !isNaN(point.x) && !isNaN(point.y) && !isNaN(point.z);
+          };
+          
+          const validPoints = cornerPoints.filter(isValidPoint);
           
           if (validPoints.length > 0) {
             const boundingSphere = Cesium.BoundingSphere.fromPoints(validPoints);
@@ -464,7 +470,14 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
           try {
             const cameraPosition = Cesium.Cartesian3.fromDegrees(cameraLon, cameraLat, cameraHeight);
             
-            if (Cesium.Cartesian3.isValid(cameraPosition)) {
+            // カメラ位置の手動検証
+            const isValidCameraPosition = (pos) => {
+              return pos && 
+                     isFinite(pos.x) && isFinite(pos.y) && isFinite(pos.z) &&
+                     !isNaN(pos.x) && !isNaN(pos.y) && !isNaN(pos.z);
+            };
+            
+            if (isValidCameraPosition(cameraPosition)) {
               viewer.camera.setView({
                 destination: cameraPosition,
                 orientation: {
@@ -516,8 +529,14 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
               const targetPosition = Cesium.Cartesian3.fromDegrees(centerLon, centerLat, centerHeight);
               const upVector = Cesium.Cartesian3.UNIT_Z;
               
-              // 位置が有効かチェック
-              if (Cesium.Cartesian3.isValid(targetPosition) && Cesium.Cartesian3.isValid(upVector)) {
+              // 位置が有効かチェック（手動検証）
+              const isValidPosition = (pos) => {
+                return pos && 
+                       isFinite(pos.x) && isFinite(pos.y) && isFinite(pos.z) &&
+                       !isNaN(pos.x) && !isNaN(pos.y) && !isNaN(pos.z);
+              };
+              
+              if (isValidPosition(targetPosition) && isValidPosition(upVector)) {
                 viewerRef.current.camera.lookAt(targetPosition, upVector);
                 console.log('カメラがDEMデータをフォーカスしました');
               } else {
