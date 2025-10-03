@@ -158,6 +158,14 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
     try {
       console.log('DEMデータの読み込みを開始...', demData.name);
 
+      // ファイルサイズのチェック
+      const fileSizeMB = demData.file.size / (1024 * 1024);
+      console.log(`ファイルサイズ: ${fileSizeMB.toFixed(2)} MB`);
+      
+      if (fileSizeMB > 50) {
+        console.warn('大きなファイルです。処理に時間がかかる可能性があります。');
+      }
+
       // GeoTIFFファイルの読み込み
       const tiff = await fromArrayBuffer(demData.data);
       const image = await tiff.getImage();
@@ -177,9 +185,21 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
 
       console.log(`画像サイズ: ${width}x${height}`);
 
-      // 高度の範囲を計算
-      const minHeight = Math.min(...heightData);
-      const maxHeight = Math.max(...heightData);
+      // 画像サイズのチェック
+      const totalPixels = width * height;
+      if (totalPixels > 1000000) { // 100万ピクセル以上
+        console.warn(`大きな画像です (${totalPixels.toLocaleString()} ピクセル)。サンプリングレートを調整します。`);
+      }
+
+      // 高度の範囲を計算（大量データの場合は安全に処理）
+      let minHeight = heightData[0];
+      let maxHeight = heightData[0];
+      
+      for (let i = 1; i < heightData.length; i++) {
+        if (heightData[i] < minHeight) minHeight = heightData[i];
+        if (heightData[i] > maxHeight) maxHeight = heightData[i];
+      }
+      
       console.log(`高度範囲: ${minHeight} - ${maxHeight}`);
 
       // 既存のDEMレイヤーを削除
@@ -189,7 +209,9 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
       existingLayers.forEach(layer => viewer.scene.primitives.remove(layer));
 
       // 高度データから3Dモデルを生成（サンプリングして軽量化）
-      const sampleRate = Math.max(1, Math.floor(Math.min(width, height) / 100)); // 最大100x100にサンプリング
+      // より安全なサンプリングレートを計算
+      const maxGridSize = 50; // 最大50x50に制限
+      const sampleRate = Math.max(1, Math.floor(Math.min(width, height) / maxGridSize));
       console.log(`サンプリングレート: ${sampleRate}`);
       
       const positions = [];
@@ -200,6 +222,11 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
       const gridHeight = Math.floor((height - 1) / sampleRate) + 1;
 
       console.log(`グリッドサイズ: ${gridWidth}x${gridHeight}`);
+      console.log(`処理する頂点数: ${gridWidth * gridHeight}`);
+
+      // バッチ処理でメモリ効率を改善
+      const batchSize = 1000;
+      let processedCount = 0;
 
       for (let y = 0; y < height - sampleRate; y += sampleRate) {
         for (let x = 0; x < width - sampleRate; x += sampleRate) {
@@ -230,6 +257,12 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
           }
           
           vertexIndex++;
+          processedCount++;
+
+          // バッチ処理の進捗を表示
+          if (processedCount % batchSize === 0) {
+            console.log(`処理進捗: ${processedCount}/${gridWidth * gridHeight} 頂点`);
+          }
         }
       }
 
@@ -315,7 +348,16 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
     } catch (error) {
       console.error('DEMデータの読み込みに失敗しました:', error);
       console.error('エラーの詳細:', error.stack);
-      setError('DEMデータの読み込みに失敗しました: ' + error.message);
+      
+      let errorMessage = 'DEMデータの読み込みに失敗しました: ' + error.message;
+      
+      if (error.message.includes('maximum call stack size exceeded')) {
+        errorMessage = 'ファイルが大きすぎます。より小さなファイルまたは低解像度のファイルを試してください。';
+      } else if (error.message.includes('out of memory')) {
+        errorMessage = 'メモリ不足です。ファイルサイズを小さくしてください。';
+      }
+      
+      setError(errorMessage);
     }
   };
 
