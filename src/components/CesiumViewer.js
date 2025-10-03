@@ -415,28 +415,39 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
 
       // デバッグ用：DEMデータの境界を表示（BoundingSphereを使用）
       if (Math.abs(centerLon) <= 180 && Math.abs(centerLat) <= 90) {
-        const cornerPoints = [
-          Cesium.Cartesian3.fromDegrees(minX, minY, minHeight * settings.heightScale),
-          Cesium.Cartesian3.fromDegrees(maxX, maxY, maxHeight * settings.heightScale),
-          Cesium.Cartesian3.fromDegrees(minX, maxY, minHeight * settings.heightScale),
-          Cesium.Cartesian3.fromDegrees(maxX, minY, minHeight * settings.heightScale)
-        ];
-        
-        const boundingSphere = Cesium.BoundingSphere.fromPoints(cornerPoints);
-        
-        // デバッグ用の球体を表示
-        const debugSphere = new Cesium.EllipsoidPrimitive({
-          ellipsoid: new Cesium.Ellipsoid(boundingSphere.radius, boundingSphere.radius, boundingSphere.radius),
-          modelMatrix: Cesium.Matrix4.fromTranslation(boundingSphere.center),
-          material: Cesium.Material.fromType('Color', {
-            color: Cesium.Color.YELLOW.withAlpha(0.3)
-          }),
-          show: true
-        });
-        
-        debugSphere._name = 'DEM_DEBUG_SPHERE';
-        viewer.scene.primitives.add(debugSphere);
-        console.log('デバッグ用境界球体を追加しました');
+        try {
+          const cornerPoints = [
+            Cesium.Cartesian3.fromDegrees(minX, minY, minHeight * settings.heightScale),
+            Cesium.Cartesian3.fromDegrees(maxX, maxY, maxHeight * settings.heightScale),
+            Cesium.Cartesian3.fromDegrees(minX, maxY, minHeight * settings.heightScale),
+            Cesium.Cartesian3.fromDegrees(maxX, minY, minHeight * settings.heightScale)
+          ];
+          
+          // 各ポイントが有効かチェック
+          const validPoints = cornerPoints.filter(point => Cesium.Cartesian3.isValid(point));
+          
+          if (validPoints.length > 0) {
+            const boundingSphere = Cesium.BoundingSphere.fromPoints(validPoints);
+            
+            // デバッグ用の球体を表示
+            const debugSphere = new Cesium.EllipsoidPrimitive({
+              ellipsoid: new Cesium.Ellipsoid(boundingSphere.radius, boundingSphere.radius, boundingSphere.radius),
+              modelMatrix: Cesium.Matrix4.fromTranslation(boundingSphere.center),
+              material: Cesium.Material.fromType('Color', {
+                color: Cesium.Color.YELLOW.withAlpha(0.3)
+              }),
+              show: true
+            });
+            
+            debugSphere._name = 'DEM_DEBUG_SPHERE';
+            viewer.scene.primitives.add(debugSphere);
+            console.log('デバッグ用境界球体を追加しました');
+          } else {
+            console.warn('有効な境界ポイントがないため、デバッグ球体をスキップします');
+          }
+        } catch (error) {
+          console.error('デバッグ球体の作成でエラーが発生しました:', error);
+        }
       }
 
       // 座標が有効な場合のみカメラを設定
@@ -448,23 +459,73 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
         
         console.log(`カメラ位置 - 経度: ${cameraLon}, 緯度: ${cameraLat}, 高度: ${cameraHeight.toFixed(0)}m`);
         
-        viewer.camera.setView({
-          destination: Cesium.Cartesian3.fromDegrees(cameraLon, cameraLat, cameraHeight),
-          orientation: {
-            heading: 0.0,
-            pitch: Cesium.Math.toRadians(-60), // より急な角度でDEMを見下ろす
-            roll: 0.0
+        // カメラ位置の検証
+        if (isFinite(cameraLon) && isFinite(cameraLat) && isFinite(cameraHeight)) {
+          try {
+            const cameraPosition = Cesium.Cartesian3.fromDegrees(cameraLon, cameraLat, cameraHeight);
+            
+            if (Cesium.Cartesian3.isValid(cameraPosition)) {
+              viewer.camera.setView({
+                destination: cameraPosition,
+                orientation: {
+                  heading: 0.0,
+                  pitch: Cesium.Math.toRadians(-60), // より急な角度でDEMを見下ろす
+                  roll: 0.0
+                }
+              });
+            } else {
+              console.warn('無効なカメラ位置のため、デフォルト位置を使用します');
+              viewer.camera.setView({
+                destination: Cesium.Cartesian3.fromDegrees(139.6917, 35.6895, 10000),
+                orientation: {
+                  heading: 0.0,
+                  pitch: Cesium.Math.toRadians(-30),
+                  roll: 0.0
+                }
+              });
+            }
+          } catch (error) {
+            console.error('カメラ位置の設定でエラーが発生しました:', error);
+            // フォールバック
+            viewer.camera.setView({
+              destination: Cesium.Cartesian3.fromDegrees(139.6917, 35.6895, 10000),
+              orientation: {
+                heading: 0.0,
+                pitch: Cesium.Math.toRadians(-30),
+                roll: 0.0
+              }
+            });
           }
-        });
+        } else {
+          console.warn('カメラ位置の値が無効です。デフォルト位置を使用します');
+          viewer.camera.setView({
+            destination: Cesium.Cartesian3.fromDegrees(139.6917, 35.6895, 10000),
+            orientation: {
+              heading: 0.0,
+              pitch: Cesium.Math.toRadians(-30),
+              roll: 0.0
+            }
+          });
+        }
         
         // カメラがDEMデータを確実に見るようにズーム
         setTimeout(() => {
           if (viewerRef.current && !viewerRef.current.isDestroyed()) {
-            viewerRef.current.camera.lookAt(
-              Cesium.Cartesian3.fromDegrees(centerLon, centerLat, centerHeight),
-              new Cesium.Cartesian3(0, 0, 0)
-            );
-            console.log('カメラがDEMデータをフォーカスしました');
+            try {
+              // カメラの位置とターゲットを検証
+              const targetPosition = Cesium.Cartesian3.fromDegrees(centerLon, centerLat, centerHeight);
+              const upVector = Cesium.Cartesian3.UNIT_Z;
+              
+              // 位置が有効かチェック
+              if (Cesium.Cartesian3.isValid(targetPosition) && Cesium.Cartesian3.isValid(upVector)) {
+                viewerRef.current.camera.lookAt(targetPosition, upVector);
+                console.log('カメラがDEMデータをフォーカスしました');
+              } else {
+                console.warn('無効なカメラ位置のため、lookAtをスキップします');
+              }
+            } catch (error) {
+              console.error('カメラのlookAtでエラーが発生しました:', error);
+            }
           }
         }, 500);
         
