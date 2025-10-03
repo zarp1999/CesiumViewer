@@ -353,32 +353,6 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
       // プリミティブが正常に追加されたか確認
       console.log('プリミティブが追加されました。シーン内のプリミティブ数:', viewer.scene.primitives.length);
 
-      // デバッグ用：DEMデータの境界を表示（BoundingSphereを使用）
-      if (Math.abs(centerLon) <= 180 && Math.abs(centerLat) <= 90) {
-        const cornerPoints = [
-          Cesium.Cartesian3.fromDegrees(minX, minY, minHeight * settings.heightScale),
-          Cesium.Cartesian3.fromDegrees(maxX, maxY, maxHeight * settings.heightScale),
-          Cesium.Cartesian3.fromDegrees(minX, maxY, minHeight * settings.heightScale),
-          Cesium.Cartesian3.fromDegrees(maxX, minY, minHeight * settings.heightScale)
-        ];
-        
-        const boundingSphere = Cesium.BoundingSphere.fromPoints(cornerPoints);
-        
-        // デバッグ用の球体を表示
-        const debugSphere = new Cesium.EllipsoidPrimitive({
-          ellipsoid: new Cesium.Ellipsoid(boundingSphere.radius, boundingSphere.radius, boundingSphere.radius),
-          modelMatrix: Cesium.Matrix4.fromTranslation(boundingSphere.center),
-          material: Cesium.Material.fromType('Color', {
-            color: Cesium.Color.YELLOW.withAlpha(0.3)
-          }),
-          show: true
-        });
-        
-        debugSphere._name = 'DEM_DEBUG_SPHERE';
-        viewer.scene.primitives.add(debugSphere);
-        console.log('デバッグ用境界球体を追加しました');
-      }
-
       // DEMデータの境界ボックスを計算
       let centerLon = (minX + maxX) / 2;
       let centerLat = (minY + maxY) / 2;
@@ -414,6 +388,32 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
       console.log(`DEM範囲 - 経度: ${lonRange.toFixed(6)}度, 緯度: ${latRange.toFixed(6)}度`);
       console.log(`高度範囲: ${minHeight} - ${maxHeight} (スケール: ${settings.heightScale})`);
       console.log(`カメラ距離: ${distance.toFixed(0)}m`);
+
+      // デバッグ用：DEMデータの境界を表示（BoundingSphereを使用）
+      if (Math.abs(centerLon) <= 180 && Math.abs(centerLat) <= 90) {
+        const cornerPoints = [
+          Cesium.Cartesian3.fromDegrees(minX, minY, minHeight * settings.heightScale),
+          Cesium.Cartesian3.fromDegrees(maxX, maxY, maxHeight * settings.heightScale),
+          Cesium.Cartesian3.fromDegrees(minX, maxY, minHeight * settings.heightScale),
+          Cesium.Cartesian3.fromDegrees(maxX, minY, minHeight * settings.heightScale)
+        ];
+        
+        const boundingSphere = Cesium.BoundingSphere.fromPoints(cornerPoints);
+        
+        // デバッグ用の球体を表示
+        const debugSphere = new Cesium.EllipsoidPrimitive({
+          ellipsoid: new Cesium.Ellipsoid(boundingSphere.radius, boundingSphere.radius, boundingSphere.radius),
+          modelMatrix: Cesium.Matrix4.fromTranslation(boundingSphere.center),
+          material: Cesium.Material.fromType('Color', {
+            color: Cesium.Color.YELLOW.withAlpha(0.3)
+          }),
+          show: true
+        });
+        
+        debugSphere._name = 'DEM_DEBUG_SPHERE';
+        viewer.scene.primitives.add(debugSphere);
+        console.log('デバッグ用境界球体を追加しました');
+      }
 
       // 座標が有効な場合のみカメラを設定
       if (Math.abs(centerLon) <= 180 && Math.abs(centerLat) <= 90) {
