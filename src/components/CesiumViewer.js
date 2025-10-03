@@ -241,6 +241,12 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
       const batchSize = 1000;
       let processedCount = 0;
 
+      // グリッドの実際のサイズを計算
+      const actualGridWidth = Math.floor((width - 1) / sampleRate) + 1;
+      const actualGridHeight = Math.floor((height - 1) / sampleRate) + 1;
+      
+      console.log(`実際のグリッドサイズ: ${actualGridWidth}x${actualGridHeight}`);
+
       for (let y = 0; y < height - sampleRate; y += sampleRate) {
         for (let x = 0; x < width - sampleRate; x += sampleRate) {
           const index = y * width + x;
@@ -291,30 +297,40 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
           // UV座標
           uvs.push(x / (width - 1), y / (height - 1));
 
-          // インデックス（三角形）
-          if (x < width - sampleRate && y < height - sampleRate) {
-            const i = vertexIndex;
-            const i1 = vertexIndex + gridWidth;
-            const i2 = vertexIndex + 1;
-            const i3 = vertexIndex + gridWidth + 1;
+          // インデックス（三角形）- 修正された計算
+          const currentX = Math.floor(x / sampleRate);
+          const currentY = Math.floor(y / sampleRate);
+          
+          if (currentX < actualGridWidth - 1 && currentY < actualGridHeight - 1) {
+            const i = currentY * actualGridWidth + currentX;
+            const i1 = (currentY + 1) * actualGridWidth + currentX;
+            const i2 = currentY * actualGridWidth + (currentX + 1);
+            const i3 = (currentY + 1) * actualGridWidth + (currentX + 1);
 
             // 2つの三角形を追加
             indices.push(i, i1, i2);
             indices.push(i1, i3, i2);
           }
           
-          vertexIndex++;
           processedCount++;
 
           // バッチ処理の進捗を表示
           if (processedCount % batchSize === 0) {
-            console.log(`処理進捗: ${processedCount}/${gridWidth * gridHeight} 頂点`);
+            console.log(`処理進捗: ${processedCount}/${actualGridWidth * actualGridHeight} 頂点`);
           }
         }
       }
 
       console.log(`生成された頂点数: ${positions.length}`);
       console.log(`生成されたインデックス数: ${indices.length}`);
+      
+      // 位置の範囲を確認
+      if (positions.length > 0) {
+        const firstPos = positions[0];
+        const lastPos = positions[positions.length - 1];
+        console.log(`最初の頂点: x=${firstPos.x.toFixed(2)}, y=${firstPos.y.toFixed(2)}, z=${firstPos.z.toFixed(2)}`);
+        console.log(`最後の頂点: x=${lastPos.x.toFixed(2)}, y=${lastPos.y.toFixed(2)}, z=${lastPos.z.toFixed(2)}`);
+      }
 
       // 位置データを平坦化
       const flattenedPositions = [];
@@ -363,8 +379,9 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
           }
         }),
         appearance: new Cesium.PerInstanceColorAppearance({
-          faceForward: false,
-          flat: true
+          faceForward: true,
+          flat: false,
+          translucent: true
         }),
         show: true,
         allowPicking: false,
