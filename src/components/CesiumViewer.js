@@ -318,12 +318,12 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
         boundingSphere: Cesium.BoundingSphere.fromPoints(positions)
       });
 
-      // マテリアルの作成
+      // マテリアルの作成（より見やすい色に変更）
       const material = new Cesium.Material({
         fabric: {
           type: 'Color',
           uniforms: {
-            color: new Cesium.Color(0.5, 0.8, 0.5, settings.opacity)
+            color: new Cesium.Color(0.8, 0.6, 0.4, settings.opacity) // 茶色系で地形らしく
           }
         }
       });
@@ -334,7 +334,7 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
           geometry: geometry,
           attributes: {
             color: Cesium.ColorGeometryInstanceAttribute.fromColor(
-              new Cesium.Color(0.5, 0.8, 0.5, settings.opacity)
+              new Cesium.Color(0.8, 0.6, 0.4, settings.opacity) // 茶色系で地形らしく
             )
           }
         }),
@@ -353,7 +353,33 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
       // プリミティブが正常に追加されたか確認
       console.log('プリミティブが追加されました。シーン内のプリミティブ数:', viewer.scene.primitives.length);
 
-      // カメラをDEMエリアにフォーカス
+      // デバッグ用：DEMデータの境界を表示（BoundingSphereを使用）
+      if (Math.abs(centerLon) <= 180 && Math.abs(centerLat) <= 90) {
+        const cornerPoints = [
+          Cesium.Cartesian3.fromDegrees(minX, minY, minHeight * settings.heightScale),
+          Cesium.Cartesian3.fromDegrees(maxX, maxY, maxHeight * settings.heightScale),
+          Cesium.Cartesian3.fromDegrees(minX, maxY, minHeight * settings.heightScale),
+          Cesium.Cartesian3.fromDegrees(maxX, minY, minHeight * settings.heightScale)
+        ];
+        
+        const boundingSphere = Cesium.BoundingSphere.fromPoints(cornerPoints);
+        
+        // デバッグ用の球体を表示
+        const debugSphere = new Cesium.EllipsoidPrimitive({
+          ellipsoid: new Cesium.Ellipsoid(boundingSphere.radius, boundingSphere.radius, boundingSphere.radius),
+          modelMatrix: Cesium.Matrix4.fromTranslation(boundingSphere.center),
+          material: Cesium.Material.fromType('Color', {
+            color: Cesium.Color.YELLOW.withAlpha(0.3)
+          }),
+          show: true
+        });
+        
+        debugSphere._name = 'DEM_DEBUG_SPHERE';
+        viewer.scene.primitives.add(debugSphere);
+        console.log('デバッグ用境界球体を追加しました');
+      }
+
+      // DEMデータの境界ボックスを計算
       let centerLon = (minX + maxX) / 2;
       let centerLat = (minY + maxY) / 2;
       
@@ -368,21 +394,56 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
         centerLat = Math.max(-90, Math.min(90, centerLat));
       }
       
+      // DEMデータの範囲を計算
+      const lonRange = Math.abs(maxX - minX);
+      const latRange = Math.abs(maxY - minY);
+      const maxRange = Math.max(lonRange, latRange);
+      
+      // 高度の計算
       const centerHeight = (minHeight + maxHeight) / 2 * settings.heightScale;
-      const distance = Math.max(1000, centerHeight * 3); // 適切な距離を計算
+      const maxHeightScaled = maxHeight * settings.heightScale;
+      
+      // カメラの距離をDEMデータの範囲に基づいて計算
+      const distance = Math.max(
+        maxRange * 111000 * 2, // 度をメートルに変換（1度 ≈ 111km）
+        maxHeightScaled * 5,   // 最高点の5倍の高さ
+        1000                   // 最小距離
+      );
 
-      console.log(`カメラ位置 - 経度: ${centerLon}, 緯度: ${centerLat}, 高度: ${distance}`);
+      console.log(`DEM中心 - 経度: ${centerLon}, 緯度: ${centerLat}`);
+      console.log(`DEM範囲 - 経度: ${lonRange.toFixed(6)}度, 緯度: ${latRange.toFixed(6)}度`);
+      console.log(`高度範囲: ${minHeight} - ${maxHeight} (スケール: ${settings.heightScale})`);
+      console.log(`カメラ距離: ${distance.toFixed(0)}m`);
 
       // 座標が有効な場合のみカメラを設定
       if (Math.abs(centerLon) <= 180 && Math.abs(centerLat) <= 90) {
+        // DEMデータの中心から少し離れた位置にカメラを配置
+        const cameraLon = centerLon;
+        const cameraLat = centerLat;
+        const cameraHeight = centerHeight + distance;
+        
+        console.log(`カメラ位置 - 経度: ${cameraLon}, 緯度: ${cameraLat}, 高度: ${cameraHeight.toFixed(0)}m`);
+        
         viewer.camera.setView({
-          destination: Cesium.Cartesian3.fromDegrees(centerLon, centerLat, distance),
+          destination: Cesium.Cartesian3.fromDegrees(cameraLon, cameraLat, cameraHeight),
           orientation: {
             heading: 0.0,
-            pitch: Cesium.Math.toRadians(-45),
+            pitch: Cesium.Math.toRadians(-60), // より急な角度でDEMを見下ろす
             roll: 0.0
           }
         });
+        
+        // カメラがDEMデータを確実に見るようにズーム
+        setTimeout(() => {
+          if (viewerRef.current && !viewerRef.current.isDestroyed()) {
+            viewerRef.current.camera.lookAt(
+              Cesium.Cartesian3.fromDegrees(centerLon, centerLat, centerHeight),
+              new Cesium.Cartesian3(0, 0, 0)
+            );
+            console.log('カメラがDEMデータをフォーカスしました');
+          }
+        }, 500);
+        
       } else {
         console.warn('座標が無効なため、デフォルトのカメラ位置を使用します');
         viewer.camera.setView({
