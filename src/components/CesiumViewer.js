@@ -173,10 +173,16 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
       
       // バウンディングボックスの取得
       const bbox = image.getBoundingBox();
-      const [minX, minY, maxX, maxY] = bbox;
+      let [minX, minY, maxX, maxY] = bbox;
 
       console.log('バウンディングボックス:', bbox);
       console.log('座標範囲 - 経度:', minX, 'to', maxX, '緯度:', minY, 'to', maxY);
+
+      // バウンディングボックスの値の検証
+      if (!isFinite(minX) || !isFinite(minY) || !isFinite(maxX) || !isFinite(maxY)) {
+        console.error('バウンディングボックスに無効な値が含まれています:', bbox);
+        throw new Error('無効なバウンディングボックスです。GeoTIFFファイルの座標情報を確認してください。');
+      }
 
       // 座標値の検証
       if (Math.abs(minX) > 180 || Math.abs(maxX) > 180 || Math.abs(minY) > 90 || Math.abs(maxY) > 90) {
@@ -238,7 +244,15 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
       for (let y = 0; y < height - sampleRate; y += sampleRate) {
         for (let x = 0; x < width - sampleRate; x += sampleRate) {
           const index = y * width + x;
-          const heightValue = heightData[index] * settings.heightScale;
+          let heightValue = heightData[index];
+          
+          // 高度値の検証
+          if (!isFinite(heightValue) || isNaN(heightValue)) {
+            console.warn(`無効な高度値: ${heightValue}, デフォルト値を使用`);
+            heightValue = 0;
+          }
+          
+          heightValue = heightValue * settings.heightScale;
 
           // 地理座標に変換
           const lon = minX + (x / (width - 1)) * (maxX - minX);
@@ -248,16 +262,26 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
           let validLon = lon;
           let validLat = lat;
           
+          // 数値の検証
+          if (!isFinite(lon) || isNaN(lon)) {
+            console.warn(`無効な経度値: ${lon}, デフォルト値を使用`);
+            validLon = 0;
+          }
+          if (!isFinite(lat) || isNaN(lat)) {
+            console.warn(`無効な緯度値: ${lat}, デフォルト値を使用`);
+            validLat = 0;
+          }
+          
           // 経度の正規化（-180 to 180）
-          if (Math.abs(lon) > 180) {
-            validLon = lon % 360;
+          if (Math.abs(validLon) > 180) {
+            validLon = validLon % 360;
             if (validLon > 180) validLon -= 360;
             if (validLon < -180) validLon += 360;
           }
           
           // 緯度の制限（-90 to 90）
-          if (Math.abs(lat) > 90) {
-            validLat = Math.max(-90, Math.min(90, lat));
+          if (Math.abs(validLat) > 90) {
+            validLat = Math.max(-90, Math.min(90, validLat));
           }
 
           // 3D位置を計算
