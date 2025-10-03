@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useLayoutEffect } from 'react';
 import * as Cesium from 'cesium';
 import { fromArrayBuffer } from 'geotiff';
 import './CesiumViewer.css';
@@ -12,64 +12,147 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
   const cesiumContainer = useRef(null);
   const viewerRef = useRef(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [error, setError] = useState(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!cesiumContainer.current || isInitialized) return;
 
-    try {
-      // Cesiumビューアーの初期化
-      const viewer = new Cesium.Viewer(cesiumContainer.current, {
-        terrainProvider: new Cesium.EllipsoidTerrainProvider(),
-        timeline: false,
-        animation: false,
-        baseLayerPicker: false,
-        fullscreenButton: false,
-        geocoder: false,
-        homeButton: false,
-        infoBox: false,
-        sceneModePicker: false,
-        selectionIndicator: false,
-        navigationHelpButton: false,
-        navigationInstructionsInitiallyVisible: false,
-        scene3DOnly: true,
-        shouldAnimate: false
-      });
+    let isInitializing = false;
 
-      // 地球の設定
-      viewer.scene.globe.enableLighting = true;
-      viewer.scene.globe.dynamicAtmosphereLighting = true;
-      viewer.scene.globe.atmosphereLightIntensity = 10.0;
+    const initializeCesium = async () => {
+      if (isInitializing) return;
+      isInitializing = true;
 
-      // カメラの初期位置設定
-      viewer.camera.setView({
-        destination: Cesium.Cartesian3.fromDegrees(139.6917, 35.6895, 100000), // 東京
-        orientation: {
-          heading: 0.0,
-          pitch: Cesium.Math.toRadians(-45),
-          roll: 0.0
+      try {
+        console.log('Cesiumの初期化を開始...');
+        
+        // 既存のビューアーがあれば破棄
+        if (viewerRef.current && !viewerRef.current.isDestroyed()) {
+          viewerRef.current.destroy();
+          viewerRef.current = null;
         }
-      });
+        
+        // コンテナのサイズを明示的に設定
+        const container = cesiumContainer.current;
+        container.style.width = '100%';
+        container.style.height = '100%';
+        container.style.minHeight = '500px';
+        
+        // コンテナの実際のサイズを取得
+        const rect = container.getBoundingClientRect();
+        console.log('コンテナサイズ:', rect.width, 'x', rect.height);
+        
+        // サイズが0の場合は待機
+        if (rect.width === 0 || rect.height === 0) {
+          console.log('コンテナサイズが0のため、待機します...');
+          setTimeout(() => {
+            const newRect = container.getBoundingClientRect();
+            console.log('再取得したコンテナサイズ:', newRect.width, 'x', newRect.height);
+            if (newRect.width > 0 && newRect.height > 0) {
+              isInitializing = false;
+              initializeCesium();
+            }
+          }, 100);
+          return;
+        }
+        
+        // Cesiumビューアーの初期化
+        const viewer = new Cesium.Viewer(container, {
+          terrainProvider: new Cesium.EllipsoidTerrainProvider(),
+          timeline: false,
+          animation: false,
+          baseLayerPicker: false,
+          fullscreenButton: false,
+          geocoder: false,
+          homeButton: false,
+          infoBox: false,
+          sceneModePicker: false,
+          selectionIndicator: false,
+          navigationHelpButton: false,
+          navigationInstructionsInitiallyVisible: false,
+          scene3DOnly: true,
+          shouldAnimate: false
+        });
 
-      viewerRef.current = viewer;
-      setIsInitialized(true);
+        // 地球の設定
+        viewer.scene.globe.enableLighting = true;
+        viewer.scene.globe.dynamicAtmosphereLighting = true;
+        viewer.scene.globe.atmosphereLightIntensity = 10.0;
+        
+        // 地球を表示するように設定
+        viewer.scene.globe.show = true;
 
-    } catch (error) {
-      console.error('Cesiumの初期化に失敗しました:', error);
-    }
+        // カメラの初期位置設定（より低い高度で開始）
+        viewer.camera.setView({
+          destination: Cesium.Cartesian3.fromDegrees(139.6917, 35.6895, 10000), // 東京、高度10km
+          orientation: {
+            heading: 0.0,
+            pitch: Cesium.Math.toRadians(-30),
+            roll: 0.0
+          }
+        });
 
-    return () => {
-      if (viewerRef.current) {
-        viewerRef.current.destroy();
-        viewerRef.current = null;
+        viewerRef.current = viewer;
+        setIsInitialized(true);
+        
+        // キャンバスサイズを明示的に設定
+        const canvas = viewer.canvas;
+        if (canvas) {
+          canvas.style.width = '100%';
+          canvas.style.height = '100%';
+          canvas.width = rect.width;
+          canvas.height = rect.height;
+          console.log('キャンバスサイズを設定:', canvas.width, 'x', canvas.height);
+        }
+        
+        // リサイズイベントを発火して適切なサイズで表示
+        setTimeout(() => {
+          if (viewerRef.current && !viewerRef.current.isDestroyed()) {
+            viewerRef.current.resize();
+            console.log('Cesiumのリサイズが完了しました');
+          }
+        }, 300);
+        
+        console.log('Cesiumの初期化が完了しました');
+
+      } catch (error) {
+        console.error('Cesiumの初期化に失敗しました:', error);
+        setError('Cesiumの初期化に失敗しました: ' + error.message);
+      } finally {
+        isInitializing = false;
       }
     };
-  }, [isInitialized]);
+
+    initializeCesium();
+
+    return () => {
+      if (viewerRef.current && !viewerRef.current.isDestroyed()) {
+        console.log('Cesiumビューアーを破棄中...');
+        viewerRef.current.destroy();
+        viewerRef.current = null;
+        setIsInitialized(false);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!viewerRef.current || !demData) return;
 
+    setError(null); // エラーをクリア
     loadDEMData(demData, viewerRef.current, settings);
   }, [demData, settings]);
+
+  // ウィンドウリサイズ時の処理
+  useEffect(() => {
+    const handleResize = () => {
+      if (viewerRef.current && !viewerRef.current.isDestroyed()) {
+        viewerRef.current.resize();
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const loadDEMData = async (demData, viewer, settings) => {
     try {
@@ -85,6 +168,7 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
       const [minX, minY, maxX, maxY] = bbox;
 
       console.log('バウンディングボックス:', bbox);
+      console.log('座標範囲 - 経度:', minX, 'to', maxX, '緯度:', minY, 'to', maxY);
 
       // 高度データの取得
       const heightData = rasters[0];
@@ -104,13 +188,21 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
       );
       existingLayers.forEach(layer => viewer.scene.primitives.remove(layer));
 
-      // 高度データから3Dモデルを生成
+      // 高度データから3Dモデルを生成（サンプリングして軽量化）
+      const sampleRate = Math.max(1, Math.floor(Math.min(width, height) / 100)); // 最大100x100にサンプリング
+      console.log(`サンプリングレート: ${sampleRate}`);
+      
       const positions = [];
       const indices = [];
       const uvs = [];
+      let vertexIndex = 0;
+      const gridWidth = Math.floor((width - 1) / sampleRate) + 1;
+      const gridHeight = Math.floor((height - 1) / sampleRate) + 1;
 
-      for (let y = 0; y < height - 1; y++) {
-        for (let x = 0; x < width - 1; x++) {
+      console.log(`グリッドサイズ: ${gridWidth}x${gridHeight}`);
+
+      for (let y = 0; y < height - sampleRate; y += sampleRate) {
+        for (let x = 0; x < width - sampleRate; x += sampleRate) {
           const index = y * width + x;
           const heightValue = heightData[index] * settings.heightScale;
 
@@ -126,18 +218,23 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
           uvs.push(x / (width - 1), y / (height - 1));
 
           // インデックス（三角形）
-          if (x < width - 1 && y < height - 1) {
-            const i = y * width + x;
-            const i1 = (y + 1) * width + x;
-            const i2 = y * width + (x + 1);
-            const i3 = (y + 1) * width + (x + 1);
+          if (x < width - sampleRate && y < height - sampleRate) {
+            const i = vertexIndex;
+            const i1 = vertexIndex + gridWidth;
+            const i2 = vertexIndex + 1;
+            const i3 = vertexIndex + gridWidth + 1;
 
             // 2つの三角形を追加
             indices.push(i, i1, i2);
             indices.push(i1, i3, i2);
           }
+          
+          vertexIndex++;
         }
       }
+
+      console.log(`生成された頂点数: ${positions.length}`);
+      console.log(`生成されたインデックス数: ${indices.length}`);
 
       // ジオメトリの作成
       const geometry = new Cesium.Geometry({
@@ -189,13 +286,19 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
       primitive._name = 'DEM_LAYER';
       viewer.scene.primitives.add(primitive);
 
+      // プリミティブが正常に追加されたか確認
+      console.log('プリミティブが追加されました。シーン内のプリミティブ数:', viewer.scene.primitives.length);
+
       // カメラをDEMエリアにフォーカス
       const centerLon = (minX + maxX) / 2;
       const centerLat = (minY + maxY) / 2;
       const centerHeight = (minHeight + maxHeight) / 2 * settings.heightScale;
+      const distance = Math.max(1000, centerHeight * 3); // 適切な距離を計算
+
+      console.log(`カメラ位置 - 経度: ${centerLon}, 緯度: ${centerLat}, 高度: ${distance}`);
 
       viewer.camera.setView({
-        destination: Cesium.Cartesian3.fromDegrees(centerLon, centerLat, centerHeight * 2),
+        destination: Cesium.Cartesian3.fromDegrees(centerLon, centerLat, distance),
         orientation: {
           heading: 0.0,
           pitch: Cesium.Math.toRadians(-45),
@@ -203,10 +306,16 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
         }
       });
 
+      // シーンの更新を強制
+      viewer.scene.requestRender();
+
       console.log('DEMデータの読み込みが完了しました');
+      console.log('DEMレイヤーが表示されているか確認してください');
 
     } catch (error) {
       console.error('DEMデータの読み込みに失敗しました:', error);
+      console.error('エラーの詳細:', error.stack);
+      setError('DEMデータの読み込みに失敗しました: ' + error.message);
     }
   };
 
@@ -215,12 +324,26 @@ const CesiumViewer = ({ demData, settings, isLoading }) => {
       <div 
         ref={cesiumContainer} 
         className="cesium-container"
-        style={{ width: '100%', height: '100%' }}
+        style={{ 
+          width: '100%', 
+          height: '100%',
+          minHeight: '500px',
+          position: 'relative'
+        }}
       />
       {isLoading && (
         <div className="loading-overlay">
           <div className="loading-spinner"></div>
           <p>DEMデータを読み込み中...</p>
+        </div>
+      )}
+      {error && (
+        <div className="error-overlay">
+          <div className="error-message">
+            <h3>エラーが発生しました</h3>
+            <p>{error}</p>
+            <button onClick={() => setError(null)}>閉じる</button>
+          </div>
         </div>
       )}
     </div>

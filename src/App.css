@@ -28,7 +28,8 @@
 .app-content {
   flex: 1;
   display: flex;
-  height: calc(100vh - 100px);
+  height: calc(100vh - 120px);
+  min-height: 500px;
 }
 
 .sidebar {
@@ -46,6 +47,9 @@
   flex: 1;
   position: relative;
   background-color: #1e1e1e;
+  min-height: 500px;
+  height: 100%;
+  width: 100%;
 }
 
 /* レスポンシブデザイン */
